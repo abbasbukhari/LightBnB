@@ -89,37 +89,31 @@ const getAllProperties = function (options, limit = 10) {
 
   let whereClauses = [];
 
-  // Add city filter
   if (options.city) {
     queryParams.push(`%${options.city}%`);
     whereClauses.push(`city LIKE $${queryParams.length}`);
   }
 
-  // Add owner_id filter
   if (options.owner_id) {
     queryParams.push(options.owner_id);
     whereClauses.push(`owner_id = $${queryParams.length}`);
   }
 
-  // Add minimum_price_per_night filter
   if (options.minimum_price_per_night) {
-    queryParams.push(options.minimum_price_per_night * 100); // Convert dollars to cents
+    queryParams.push(options.minimum_price_per_night * 100);
     whereClauses.push(`cost_per_night >= $${queryParams.length}`);
   }
 
-  // Add maximum_price_per_night filter
   if (options.maximum_price_per_night) {
-    queryParams.push(options.maximum_price_per_night * 100); // Convert dollars to cents
+    queryParams.push(options.maximum_price_per_night * 100);
     whereClauses.push(`cost_per_night <= $${queryParams.length}`);
   }
 
-  // Add minimum_rating filter
   if (options.minimum_rating) {
     queryParams.push(options.minimum_rating);
     whereClauses.push(`AVG(property_reviews.rating) >= $${queryParams.length}`);
   }
 
-  // Combine where clauses into query string
   if (whereClauses.length > 0) {
     queryString += `WHERE ${whereClauses.join(' AND ')} `;
   }
@@ -138,6 +132,51 @@ const getAllProperties = function (options, limit = 10) {
     .catch(err => {
       console.error("Error in getAllProperties:", err.message);
       return [];
+    });
+};
+
+/**
+ * Add a new property to the database.
+ * @param {object} property - The property object containing details of the property.
+ * @return {Promise<object|null>} - A promise that resolves to the newly created property object.
+ */
+const addProperty = function (property) {
+  const queryString = `
+    INSERT INTO properties (
+      owner_id, title, description, thumbnail_photo_url, cover_photo_url, 
+      cost_per_night, street, city, province, post_code, country, 
+      parking_spaces, number_of_bathrooms, number_of_bedrooms
+    )
+    VALUES (
+      $1, $2, $3, $4, $5, 
+      $6, $7, $8, $9, $10, $11, 
+      $12, $13, $14
+    )
+    RETURNING *;
+  `;
+
+  const queryParams = [
+    property.owner_id,
+    property.title,
+    property.description,
+    property.thumbnail_photo_url,
+    property.cover_photo_url,
+    property.cost_per_night * 100, // Convert to cents
+    property.street,
+    property.city,
+    property.province,
+    property.post_code,
+    property.country,
+    property.parking_spaces,
+    property.number_of_bathrooms,
+    property.number_of_bedrooms,
+  ];
+
+  return pool.query(queryString, queryParams)
+    .then(res => res.rows[0])
+    .catch(err => {
+      console.error("Error in addProperty:", err.message);
+      return null;
     });
 };
 
@@ -175,5 +214,6 @@ module.exports = {
   getUserWithId,
   addUser,
   getAllProperties,
+  addProperty,
   getAllReservations,
 };

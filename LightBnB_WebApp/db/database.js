@@ -74,6 +74,74 @@ const addUser = function (user) {
 };
 
 /**
+ * Get all properties based on filter options.
+ * @param {object} options - Filtering options for properties.
+ * @param {number} limit - The maximum number of properties to return (default: 10).
+ * @return {Promise<Array>} - A promise that resolves to an array of properties.
+ */
+const getAllProperties = function (options, limit = 10) {
+  const queryParams = [];
+  let queryString = `
+    SELECT properties.*, AVG(property_reviews.rating) as average_rating
+    FROM properties
+    LEFT JOIN property_reviews ON properties.id = property_reviews.property_id
+  `;
+
+  let whereClauses = [];
+
+  // Add city filter
+  if (options.city) {
+    queryParams.push(`%${options.city}%`);
+    whereClauses.push(`city LIKE $${queryParams.length}`);
+  }
+
+  // Add owner_id filter
+  if (options.owner_id) {
+    queryParams.push(options.owner_id);
+    whereClauses.push(`owner_id = $${queryParams.length}`);
+  }
+
+  // Add minimum_price_per_night filter
+  if (options.minimum_price_per_night) {
+    queryParams.push(options.minimum_price_per_night * 100); // Convert dollars to cents
+    whereClauses.push(`cost_per_night >= $${queryParams.length}`);
+  }
+
+  // Add maximum_price_per_night filter
+  if (options.maximum_price_per_night) {
+    queryParams.push(options.maximum_price_per_night * 100); // Convert dollars to cents
+    whereClauses.push(`cost_per_night <= $${queryParams.length}`);
+  }
+
+  // Add minimum_rating filter
+  if (options.minimum_rating) {
+    queryParams.push(options.minimum_rating);
+    whereClauses.push(`AVG(property_reviews.rating) >= $${queryParams.length}`);
+  }
+
+  // Combine where clauses into query string
+  if (whereClauses.length > 0) {
+    queryString += `WHERE ${whereClauses.join(' AND ')} `;
+  }
+
+  queryParams.push(limit);
+  queryString += `
+    GROUP BY properties.id
+    ORDER BY cost_per_night
+    LIMIT $${queryParams.length};
+  `;
+
+  console.log(queryString, queryParams);
+
+  return pool.query(queryString, queryParams)
+    .then(res => res.rows)
+    .catch(err => {
+      console.error("Error in getAllProperties:", err.message);
+      return [];
+    });
+};
+
+/**
  * Get all reservations for a specific user.
  * @param {number} guest_id - The ID of the guest (user).
  * @param {number} limit - The maximum number of reservations to return (default: 10).
@@ -106,5 +174,6 @@ module.exports = {
   getUserWithEmail,
   getUserWithId,
   addUser,
+  getAllProperties,
   getAllReservations,
 };
